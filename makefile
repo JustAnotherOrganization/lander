@@ -16,13 +16,12 @@ Q = $(if $(filter 1,$V),,@)
 M = $(shell printf "\033[34;1m▶\033[0m")
 
 .PHONY: all
-all: fmt lint build
+all: fmt build
 
 
 build: pack
-
-	$(info $(M) building executable…) @ ## Build program binary
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build \
+	$(info $(M) building executable…) 
+	@CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build \
 		-tags release \
 		-ldflags '-X main.GitComHash=$(GITHASH) -X main.BuildStamp=$(DATE)' \
 		-o $(BIN)/$(PACKAGE) cmd/main.go
@@ -49,8 +48,6 @@ lint: | $(GOLINT) ; $(info $(M) running golint…) @ ## Run golint
 fmt: ; $(info $(M) running gofmt…) @ ## Run gofmt on all source files
 	$Q $(GO) fmt ./...
 
-		#; docker build -t $(PACKAGE)
-
 .PHONY: clean
 clean: ; $(info $(M) cleaning…)	@ ## Cleanup everything
 	@rm -rf $(BIN)
@@ -66,5 +63,5 @@ version:
 	@echo $(VERSION)
 
 pack:
-	$(info $(M) binding assets) @ ## Build program binary
-	go-bindata -ignore=data.go -pkg data -prefix data -o data.go ./...
+	$(info $(M) binding assets) 
+	go-bindata -ignore=data/data.go -pkg data -prefix data -o data/data.go data

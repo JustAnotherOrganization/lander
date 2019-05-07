@@ -1,13 +1,13 @@
 package main
 
 import (
-	"flag"
 	"fmt"
-	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 
+	"google.golang.org/appengine"
 	"justanother.org/lander/data"
 )
 
@@ -18,9 +18,6 @@ const (
 
 // Network Bindings
 var (
-	flagPort int
-	flagHost string
-
 	//GitComHash and BuildStamp are used to display version and build time
 	GitComHash = "undefined"
 	//BuildStamp is used to display  build time
@@ -39,13 +36,16 @@ func init() {
 		}
 	}
 
-	flag.IntVar(&flagPort, "port", 8080, "Specify the port to run the application.")
-	flag.StringVar(&flagHost, "host", "", "Specify the host to bind the application to.")
-	flag.Parse()
 }
 
 func constructPage(url string) (page string) {
-	githubURL := fmt.Sprintf("https://%v/%v", toURL, strings.Replace(url, "/", "-", -1))
+	// We don't have multi later repositories, so only get the first item if
+	// seperated
+	urlParts := strings.Split(url, "/")
+	url = strings.ToLower(urlParts[0])
+
+	githubURL := fmt.Sprintf("https://%v/%v", toURL, url)
+
 	return fmt.Sprintf(`<!DOCTYPE html>
 	<html>
 		<head>
@@ -57,9 +57,10 @@ func constructPage(url string) (page string) {
 }
 
 func handler(rw http.ResponseWriter, r *http.Request) {
-	url := r.URL.String()[1:len(r.URL.String())]
 
-	if url == "" {
+	cleanURL(r.URL)
+
+	if r.URL.Path == "" {
 		if bytes, _ := data.Asset("index.html"); bytes != nil {
 			rw.WriteHeader(http.StatusOK)
 			rw.Write(bytes)
@@ -70,22 +71,35 @@ func handler(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if bytes, _ := data.Asset(url); bytes != nil {
+	if bytes, _ := data.Asset(r.URL.Path); bytes != nil {
 		rw.WriteHeader(http.StatusOK)
 		rw.Write(bytes)
 		return
 	}
 
 	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprint(rw, constructPage(url))
+	fmt.Fprint(rw, constructPage(r.URL.Path))
 }
 
 func main() {
-	fmt.Printf("Starting server %v:%v\n", flagHost, flagPort)
-
 	http.HandleFunc("/", handler)
-	err := http.ListenAndServe(fmt.Sprintf("%v:%v", flagHost, flagPort), nil)
-	if err != nil {
-		log.Fatal(err)
+	appengine.Main() // Start the server
+}
+
+func cleanURL(url *url.URL) {
+	if url == nil {
+		return
 	}
+
+	// Sanitize
+	switch {
+	case strings.HasPrefix(url.Path, "https://"):
+		url.Path = url.Path[8:]
+	case strings.HasPrefix(url.Path, "http://"):
+		url.Path = url.Path[7:]
+	case strings.HasPrefix(url.Path, "/"):
+		url.Path = url.Path[1:]
+	}
+
+	return
 }
